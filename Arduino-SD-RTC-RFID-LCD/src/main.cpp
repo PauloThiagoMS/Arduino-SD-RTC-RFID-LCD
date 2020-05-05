@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <LiquidCrystal.h>
-LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
+LiquidCrystal lcd(7, 6, 2, 5, 3, 4);
 
 #include <MFRC522.h> // for the RFID
 #include <SPI.h> // for the RFID and SD card module
@@ -14,7 +14,7 @@ LiquidCrystal lcd(7, 6, 5, 4, 3, 2);
 #define RST_RFID 9
 
 // define select pin for SD card module
-#define CS_SD 8 
+#define CS_SD A0 
 
 // Create a file to store the data
 File myFile;
@@ -66,11 +66,8 @@ boolean readRFID() {
   return true;
 }
 
-boolean name_by_id(){
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Buscando...");
-  digitalWrite(8, LOW);
+boolean check_and_save(){
+  digitalWrite(CS_SD, LOW);
   Serial.print("SDC.name_by_id()======");
   myFile = SD.open("user.csv", FILE_READ);
   delay(100);
@@ -97,10 +94,8 @@ boolean name_by_id(){
         myFile.print(tmp);
         myFile.println(uidChar);
         myFile.close();
-        digitalWrite(8,HIGH);
+        digitalWrite(CS_SD,HIGH);
         Serial.println("DONE");
-        lcd.print(".OK");
-        
         return true;  
       }else{
         Serial.println("FAIL_OPE"); 
@@ -114,7 +109,7 @@ boolean name_by_id(){
   lcd.setCursor(0, 0);
   lcd.print("ACESSO NEGADO");
   myFile.close();
-  digitalWrite(8,HIGH);
+  digitalWrite(CS_SD,HIGH);
   return false;
 }
 
@@ -135,7 +130,8 @@ void setup() {
 
   // Setup for the SD card
   Serial.print("SDC.setup()===========");
-  digitalWrite(8, LOW);
+  pinMode(CS_SD, OUTPUT);
+  digitalWrite(CS_SD, LOW);
   lcd.setCursor(0, 1);
   lcd.print("TEST SDCard... ");
   delay(500);
@@ -146,8 +142,9 @@ void setup() {
   }
   Serial.println("DONE");
   lcd.print("DONE");
-  digitalWrite(8,HIGH);
+  digitalWrite(CS_SD,HIGH);
   delay(500);
+  
   // Setup for the RTC
   Serial.print("RTC.setup()===========");
   lcd.setCursor(0, 1);
@@ -160,15 +157,14 @@ void setup() {
     lcd.print("FAIL");
     while(1);
   }
-  else {
-    if(!rtc.isrunning()) {
-      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-      Serial.print("*");
-    } 
+  if(!rtc.isrunning()) {
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    Serial.print("*"); 
   }
   Serial.println("DONE");
   lcd.print("DONE");
   delay(500);
+  
 
    // Setup for the RFID
   Serial.print("RFID.setup()==========");
@@ -177,13 +173,12 @@ void setup() {
   lcd.setCursor(0, 1);
   lcd.print("TEST RFID..... ");  
   delay(500);
-  char* v = rfid.PCD_DumpVersion();
-  if (strlen(v) < 2){
+  if (rfid.PCD_DumpVersion() < 0){
     Serial.println("FAIL");
     lcd.print("FAIL");
     while(1);
   }
-  Serial.println(v);
+  Serial.println("DONE");
   lcd.print("DONE");
   delay(500);
   
@@ -195,6 +190,7 @@ void setup() {
 
 void loop() {
   // Atualizando o Relogio no Display
+  
   if (contLoop > 7){
     now = rtc.now(); 
     lcd.setCursor(0, 1);
@@ -217,10 +213,14 @@ void loop() {
     lcd.print(tmp);
     contLoop = 0;
   }
+  
   // Verificando novo cartao
   if(rfid.PICC_IsNewCardPresent()) {
     if (readRFID()){
-      name_by_id();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Buscando...");
+      check_and_save();
       delay(3000);
       lcd.clear();
       lcd.print("Aproxime o cartao.");
